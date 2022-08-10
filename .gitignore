@@ -1,4 +1,4 @@
 /books
 /demo
-savedata/*txt
+**/savedata/*.txt
 scripts/__pycache__
