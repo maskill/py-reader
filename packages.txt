@@ -1,0 +1,4 @@
+python3-tk
+espeak
+ffmpeg
+libespeak1
