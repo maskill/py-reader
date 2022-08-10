@@ -1,0 +1,4 @@
+/books
+/demo
+**/savedata/*.txt
+scripts/__pycache__
