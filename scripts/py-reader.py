@@ -7,6 +7,7 @@ import threading
 from tts_class import TTS_Engine
 import multiprocessing
 from multiprocessing import Value
+import os.path
 
 
 ''' global variables	'''
@@ -33,16 +34,17 @@ def changeLine(b):
 	# print next line
 	if b==True and lineTracker.value < maxLoops:
 		lineTracker.value+=1
-		#print("next line")
 
 	# print previous line
 	if b==False and lineTracker.value > 0:
-		lineTracker.value-=1
-		#print("prev line")
+		lineTracker.value-=1	
+	
+	# update visuals
+	if lineTracker.value < maxLoops:
+		captionstr.set(preppedTxt[lineTracker.value])
+		curLine.set(lineTracker.value)
 
 	#print(lineTracker.value)
-	captionstr.set(preppedTxt[lineTracker.value])
-	curLine.set(lineTracker.value)
 	stopAudio()
 
 # tts engine callback
@@ -209,7 +211,7 @@ def drawSettingsMenu():
 
 
 def drawInfoPage():
-	ph = " Speech Rate: Control how fast words are spoken. (75-225).\n\n Volume: Set how loud the audio output should be. (0-100)\n\n Voices: Shows all currently available voices the application can use.\n\n Made by: Lindelle Anglin"
+	ph = " Speech Rate: Control how fast words are spoken. (75-225).\n\n Volume: Set how loud the audio output should be. (0-100)\n\n Voices: Shows all currently available voices the application can use."
 	tk.messagebox.showinfo("Info", ph)
 
 
@@ -287,8 +289,9 @@ def drawFileMenu():
 
 def searchFiles():
 	global rawTxt, preppedTxt, maxLoops
-	
-	filepath = filedialog.askopenfilename(initialdir = "/home/Documents/dev_projects",
+	p = os.path.realpath("")
+
+	filepath = filedialog.askopenfilename(initialdir = p,
                                           title = "Select a File",
                                           filetypes = (("Text files",
                                                         "*.txt*"),
@@ -302,30 +305,32 @@ def searchFiles():
 
 	rawTxt = f.read()
 	f.close()
-	# update global vals
 	
+	# update global values
 	preppedTxt = rawTxt.split(".")
 
-	#print( "pre", len(preppedTxt))
+	#print( "pre-cleaning", len(preppedTxt))
 	for l in preppedTxt:
 		if l == '' or l=="":
 			preppedTxt.remove(l)
-	#print( "post", len(preppedTxt))
+	#print( "post-cleaning", len(preppedTxt))
 
 	maxLoops = (len(preppedTxt)-1)
-	#print("max loop: ", maxLoops)
+	if len(preppedTxt) == 1:
+		maxLoops = 1
+		#print("max loop: ", maxLoops)
+
+	lineTracker.value = -1
 
 	wordCount = "word count:  " + str(len(rawTxt.split()))
 	lineCount = "line count:  " + str(maxLoops)
 
 	wordstr.set(wordCount)
 	linestr.set(lineCount)
-
-	lineTracker.value = -1
-	stopAudio()
 	captionstr.set("A new text file has been loaded.")
-	
 	curLine.set(0)
+
+	stopAudio()
 	tts.prepAudio(rawTxt, pathstr.get().split(".")[0])
 
 
@@ -352,7 +357,7 @@ if __name__ == "__main__":
 
 	# Declaration of Tkinter variables
 	pathstr = tk.StringVar()
-	pathstr.set("___ File Explorer using py-Tkinter ___")
+	pathstr.set("___ File Explorer ___")
 
 	wordstr = tk.StringVar()
 	wordstr.set("word count: ??")

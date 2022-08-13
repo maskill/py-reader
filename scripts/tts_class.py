@@ -12,7 +12,6 @@ class TTS_Engine:
 	lineCount = 0
 	rawText = ""
 	rdyText = ""
-	#fileLoaded = False
 	voicesList = []
 	curVoiceName = "default"
 	curVoiceIndex = 0
@@ -39,7 +38,7 @@ class TTS_Engine:
 		file_found = False
 
 		try:
-			sf = open("savedata/app_settings.txt", "x")
+			sf = open("app_settings.txt", "x")
 		except:
 			#print("file exists!")
 			file_found = True
@@ -49,7 +48,7 @@ class TTS_Engine:
 	
 
 		if(file_found):
-			sf = open("savedata/app_settings.txt", "r")
+			sf = open("app_settings.txt", "r")
 			#fData=sf.readlines()
 			fData = sf.read().split(",")
 			sf.close()
@@ -67,14 +66,12 @@ class TTS_Engine:
 
 	#[future builds should have the option to read by sentence or by line]
 	def prepAudio(self, rawTxt, item):
-		#self.fileLoaded = True
 		self.rawText = rawTxt
 		self.fileName = item
 
 		# split raw text into an array of sentences
 		self.lineCount = 0
 		self.rdyText = self.rawText.split(".")
-		#print(self.rdyText)
 
 	def initVals(self, captionVar):
 		self.caption = captionVar
@@ -100,7 +97,7 @@ class TTS_Engine:
 		
 		# save settings to a txt file
 		prepStr = str(sr) + "," + str(vol) + "," + voc + "," + str(vocID)
-		savefile = open("savedata/app_settings.txt", "w")
+		savefile = open("app_settings.txt", "w")
 		savefile.write(prepStr)
 		savefile.close()
 
