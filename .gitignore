@@ -1,4 +1,5 @@
+.gitignore
 /books
 /demo
-**/savedata/*.txt
 scripts/__pycache__
+app_settings.txt

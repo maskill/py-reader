@@ -4,26 +4,35 @@ from tkinter import filedialog
 import pyttsx3
 import time
 import threading
-from tts_class import TTS_Engine
 import multiprocessing
-from multiprocessing import Value
+from multiprocessing import Value, Queue
 import os.path
 
 
-''' global variables	'''
+''' global variables '''
 rawTxt = " "
 preppedTxt = " "
 maxLoops = 0
 lineTracker = Value('i', 0)
 proc = None
 
+# engine variables
+sRate = 115
+volume = 1.0
 
-'''		GUI helper functions	'''
+# engine tracking variables
+lineCount = 0
+rdyText = ""
+voicesList = []
+curVoiceName = "default"
+curVoiceIndex = 0
+
+
+''' GUI helper functions '''
 def findLine(v):
 	global proc
 	if proc.is_alive():
 		if captionstr.get() != preppedTxt[lineTracker.value-1]:
-
 			captionstr.set(preppedTxt[lineTracker.value-1])
 			curLine.set(lineTracker.value)
 
@@ -44,7 +53,6 @@ def changeLine(b):
 		captionstr.set(preppedTxt[lineTracker.value])
 		curLine.set(lineTracker.value)
 
-	#print(lineTracker.value)
 	stopAudio()
 
 # tts engine callback
@@ -75,12 +83,12 @@ def triggerThread(action):
 
 
 def playAudio(t, maxL, pos):
-	tempVal = tts.fetchSettings()
+	tempVal = fetchSettings()
 	
 	eng = pyttsx3.init()
 	eng.setProperty('voice', tempVal[3])
 	eng.setProperty('rate', tempVal[0])
-	#eng.setProperty('volume', tempVal[1])
+	#eng.setProperty('volume', tempVal[1]) "note: may trigger a bug causing distorted audio output."
 	eng.connect('started-utterance', onStart)
 	
 	# speak
@@ -106,7 +114,8 @@ def rm_children():
 		child.destroy()
 
 
-'''		application visuals		'''
+
+''' application visuals '''
 
 # draw the main menu
 def drawMM(): 
@@ -141,8 +150,10 @@ def drawExitPage():
 	if(response == "yes"):
 		exitApp()
 
+
 # draw the settings menu
 def drawSettingsMenu(): 
+	global voicesList
 	# prep the window
 	rm_children();
 
@@ -168,7 +179,7 @@ def drawSettingsMenu():
 	vol = tk.Scale(sm, activebackground="blue", orient="horizontal", from_=0, to=100, width=20, length=300)
 	vol.place(relx = 0.3, rely=0.35)
 
-	# ------------------------------------------
+	# ---------------------------------------------------------
 	# Voices
 	voiceTxt = tk.Label(sm, text="Voices:", font=("Times", 18), bg="#ffffff").place(relx = 0.15, rely=0.55, anchor="center")
 
@@ -180,13 +191,12 @@ def drawSettingsMenu():
 
 	voiceOptions = tk.Listbox(vFrame, yscrollcommand=scrollbar.set, height = 5, font=("Times", 14))
 
-	tv = tts.voicesList
-	for v in tv:
+	for v in voicesList:
    		voiceOptions.insert("end", v)
 
-	voiceOptions.pack()#place(relx = 0.15, rely=0.5)
+	voiceOptions.pack()
 	scrollbar.config( command = voiceOptions.yview )
-	# ------------------------------------------
+	# ----------------------------------------------------------
 
 	# Info button
 	info = tk.Button(sm, image=infoIcon, text="Begin", command = drawInfoPage )
@@ -201,7 +211,7 @@ def drawSettingsMenu():
 	exit.place(relx = 0.75, rely=0.9, anchor="center")
 
 	# update elements to match current settings
-	tempVal = tts.fetchSettings()
+	tempVal = fetchSettings()
 	
 	# set UI elements to match save data
 	sScale.set(tempVal[0])
@@ -218,7 +228,7 @@ def drawInfoPage():
 def saveSettings(sr, vol, vo):
 	# Change settings all at once
 	if vo.curselection() != ():
-		tts.updateSettings(int( sr.get()), vol.get(), vo.get(vo.curselection()), vo.curselection()[0] )
+		updateSettings(int( sr.get()), vol.get(), vo.get(vo.curselection()), vo.curselection()[0] )
 		tk.messagebox.showinfo("Saved", "A current settings have been saved.")
 	else:
 		tk.messagebox.showwarning("Missing Value", "A voice must be selected before changes can be saved.")
@@ -236,10 +246,8 @@ def drawFileMenu():
 	bgImg = tk.Label( fm, image = bg, bg = 'white')
 	bgImg.place(x = 0,y = 0)
 
-
 	title = tk.Label(fm, text="PY-Reader",font=("Times",25,"bold italic"),fg="black", bg="#ffffff" )
 	title.place(relx = 0.5, rely=0.1, anchor="center")
-
 
 	# browse button
 	browseBut = tk.Button(fm, text="browse files", command = searchFiles)
@@ -281,7 +289,6 @@ def drawFileMenu():
 	
 	stopBut = tk.Button(fm, text="Stop", command = stopAudio, width=10 )
 	stopBut.place(relx = 0.75, rely=0.825, anchor="center")	
-
 
 	returnBut = tk.Button(fm, text="Return to menu", command = lambda: drawMM())
 	returnBut.place(relx = 0.5, rely=0.925, anchor="center")
@@ -331,13 +338,83 @@ def searchFiles():
 	curLine.set(0)
 
 	stopAudio()
-	tts.prepAudio(rawTxt, pathstr.get().split(".")[0])
 
+
+'''			tts related functions					'''
+def tts_init():
+	global sRate, volume, curVoiceName, curVoiceIndex, voicesList
+	
+	# load the list of available voices
+	q = Queue()
+	v_thread = multiprocessing.Process(target=listVoices, args=(q,) )
+	v_thread.start()
+	v_thread.join()
+	voicesList = q.get()
+
+	# load app settings (if available)
+	file_found = False
+
+	try:
+		sf = open("app_settings.txt", "x")
+	except:
+		file_found = True
+	else:
+		#print("no file found, continue init process")
+		pass	
+
+	if(file_found):
+		sf = open("app_settings.txt", "r")
+		#fData=sf.readlines()
+		fData = sf.read().split(",")
+		sf.close()
+		
+		sRate = int(fData[0])
+		volume = (float(fData[1]) * 0.01) # form 1-100 -> 0.0-1.0 
+		curVoiceName = fData[2]
+		curVoiceIndex = int(fData[3])
+
+	else: # no file found, create one via update function
+		updateSettings(sRate, 100, curVoiceName, curVoiceIndex)
+
+
+def updateSettings(sr, vol, voc, vocID):
+	global sRate, volume, curVoiceName, curVoiceIndex
+	
+	sRate = sr
+	volume = (vol * 0.01)
+	curVoiceName = voc
+	curVoiceIndex = vocID
+	
+	# save settings to a txt file
+	prepStr = str(sr) + "," + str(vol) + "," + voc + "," + str(vocID)
+	savefile = open("app_settings.txt", "w")
+	savefile.write(prepStr)
+	savefile.close()
+
+
+def fetchSettings(): 
+	vals = []
+	vals.append(sRate)
+	vals.append( int(volume * 100) ) #scale from 0.0-1.0 --> 0-100
+	vals.append(curVoiceIndex)
+	vals.append(curVoiceName)
+	return vals
+
+
+def listVoices(q):
+	tmpL = []
+
+	v = pyttsx3.init().getProperty('voices')
+	for x in v:
+		tmpL.append(x.id)
+
+	q.put(tmpL)
+	del v
 
 
 
 if __name__ == "__main__":
-	#tts = TTS_Engine()
+	tts_init()
 
 	#setup window
 	window = tk.Tk()
@@ -371,7 +448,5 @@ if __name__ == "__main__":
 	curLine = tk.IntVar()
 
 	drawMM()
-	
-	tts = TTS_Engine()
 
 	window.mainloop()
