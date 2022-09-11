@@ -14,7 +14,7 @@ A simple *Text-To-Speech* application written in Python using [Pyttsx3](https://
 * Change voice (*if available*)
 
 
-###### Built using
+###### Built on Ubuntu 20.04.4 LTS using
 | Software | Version  |
 | -------- | --------:|
 | Python3  | 3.8.10 |
@@ -36,7 +36,7 @@ xargs -a packages.txt sudo apt-get install
 
 The application can be started in the root directory using:
 ~~~~
-python3 scripts/py-reader.py
+python3 py-reader.py
 ~~~~
 
 ### Credits
